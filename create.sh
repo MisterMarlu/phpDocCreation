@@ -1,5 +1,12 @@
 #!/bin/bash
 
+function jsonDecode() {
+  json=$1
+  key=$2
+
+  echo ${json} | jq -r ${key}
+}
+
 function download {
   echo "Download sami.phar"
 
@@ -7,44 +14,103 @@ function download {
 }
 
 function createConfig {
+  versions=()
+  github=false
+  ghUser=""
+  ghRepo=""
+
   # Ask user for necessary information about the configuration file.
-  echo "Title of the documentation:"
-  read title
-  echo "Full path to the project directory (e.g. /var/www/html/project):"
-  read projectDir
-  echo "Directory which should documented (e.g. lib):"
-  read docDir
-  echo "Output directory name (e.g. doc):"
-  read outDir
+  read -p "Title of the documentation: " title
+  read -p "Full path to the project directory (e.g. /var/www/html/project): " projectDir
+  read -p "Directory which should documented (e.g. lib): " docDir
+  read -p "Output directory name (e.g. doc): " outDir
   echo "Exclude directories (e.g. test resources):"
   read -a excludeDirs
+
+  while true; do
+    read -p "Include github repository? " tmp
+    case ${tmp} in
+      [Yy]* ) github=true; break;;
+      [Nn]* ) break;;
+      * ) echo "Please answer with yes or no";;
+    esac
+  done
+
+  if ${github}; then
+    while true; do
+      read -p "Github username: " ghUser
+      [[ ! -z ${ghUser} ]] && break;
+    done
+
+    while true; do
+      read -p "Github repository name: " ghRepo
+      [[ ! -z ${ghRepo} ]] && break;
+    done
+
+    json=$(curl "https://api.github.com/repos/${ghUser}/${ghRepo}/tags")
+    versions=$(echo "${json}" | jq -c ".[]")
+  fi
 
   cacheDir="${projectDir}/samiCache"
 
   # Write file.
-  echo "<?php" > sami-config.php
-  echo "" >> sami-config.php
-  echo "use Sami\Sami;" >> sami-config.php
-  echo "use Symfony\Component\Finder\Finder;" >> sami-config.php
-  echo "" >> sami-config.php
-  echo "\$iterator = Finder::create()" >> sami-config.php
-  echo "    ->files()" >> sami-config.php
-  echo "    ->name( '*.php' )" >> sami-config.php
+  echo "<?php" > ${config}
+  echo "" >> ${config}
+  echo "use Sami\Sami;" >> ${config}
+  echo "use Symfony\Component\Finder\Finder;" >> ${config}
+
+  if ${github}; then
+    echo "use Sami\RemoteRepository\GitHubRemoteRepository;" >> ${config}
+    echo "use Sami\Version\GitVersionCollection;" >> ${config}
+  fi
+
+  echo "" >> ${config}
+  echo "\$dir = '${projectDir}';" >> ${config}
+
+  if ${github}; then
+    echo "" >> ${config}
+    echo "\$versions = GitVersionCollection::create( \$dir )" >> ${config}
+
+    for version in ${versions[@]}; do
+      versionNumber=$(jsonDecode ${version} ".name")
+      echo "    ->add( '${versionNumber}', '${versionNumber}' )" >> ${config}
+    done
+
+    echo "    ->add( 'master', 'master' );" >> ${config}
+  fi
+
+  echo "" >> ${config}
+  echo "\$iterator = Finder::create()" >> ${config}
+  echo "    ->files()" >> ${config}
+  echo "    ->name( '*.php' )" >> ${config}
 
   for exclude in ${excludeDirs[@]}; do
-    echo "    ->exclude( '${exclude}' )" >> sami-config.php
+    echo "    ->exclude( '${exclude}' )" >> ${config}
   done
 
-  echo "    ->in( '${projectDir}/${docDir}' );" >> sami-config.php
-  echo "" >> sami-config.php
-  echo "\$options = [" >> sami-config.php
-  echo "    'title' => '${title}'," >> sami-config.php
-  echo "    'build_dir' => '${projectDir}/${outDir}'," >> sami-config.php
-  echo "    'cache_dir' => '${projectDir}/samiCache'," >> sami-config.php
-  echo "    'default_opened_level' => 2," >> sami-config.php
-  echo "];" >> sami-config.php
-  echo "" >> sami-config.php
-  echo "return new Sami( \$iterator, \$options );" >> sami-config.php
+  echo "    ->in( \$dir . '/${docDir}' );" >> ${config}
+  echo "" >> ${config}
+  echo "\$options = [" >> ${config}
+  echo "    'title' => '${title}'," >> ${config}
+
+  if ${github}; then
+    echo "    'build_dir' => \$dir . '/${outDir}/%version%'," >> ${config}
+    echo "    'cache_dir' => \$dir . '/samiCache/%version%'," >> ${config}
+  else
+    echo "    'build_dir' => \$dir . '/${outDir}'," >> ${config}
+    echo "    'cache_dir' => \$dir . '/samiCache'," >> ${config}
+  fi
+
+  echo "    'default_opened_level' => 2," >> ${config}
+
+  if ${github}; then
+    echo "    'versions' => \$versions," >> ${config}
+    echo "    'remote_repository' => new GitHubRemoteRepository( '${ghUser}/${ghRepo}', \$dir )," >> ${config}
+  fi
+
+  echo "];" >> ${config}
+  echo "" >> ${config}
+  echo "return new Sami( \$iterator, \$options );" >> ${config}
   # File finished.
 }
 
