@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Decode an JSON array or object.
 function jsonDecode() {
   json=$1
   key=$2
@@ -7,12 +8,14 @@ function jsonDecode() {
   echo ${json} | jq -r ${key}
 }
 
+# Downloads the PHP Archive "sami.phar".
 function download {
   echo "Download sami.phar"
 
   curl -O http://get.sensiolabs.org/sami.phar
 }
 
+# Creates the configuration file for sami.phar.
 function createConfig {
   versions=()
   github=false
@@ -53,7 +56,7 @@ function createConfig {
 
   cacheDir="${projectDir}/samiCache"
 
-  # Write file.
+  # Write the file.
   echo "<?php" > ${config}
   echo "" >> ${config}
   echo "use Sami\Sami;" >> ${config}
@@ -66,9 +69,9 @@ function createConfig {
 
   echo "" >> ${config}
   echo "\$dir = '${projectDir}';" >> ${config}
+  echo "" >> ${config}
 
   if ${github}; then
-    echo "" >> ${config}
     echo "\$versions = GitVersionCollection::create( \$dir )" >> ${config}
 
     for version in ${versions[@]}; do
@@ -77,9 +80,9 @@ function createConfig {
     done
 
     echo "    ->add( 'master', 'master' );" >> ${config}
+    echo "" >> ${config}
   fi
 
-  echo "" >> ${config}
   echo "\$iterator = Finder::create()" >> ${config}
   echo "    ->files()" >> ${config}
   echo "    ->name( '*.php' )" >> ${config}
