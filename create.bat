@@ -25,6 +25,19 @@ if exist %cacheDir% (
   echo Cache directory removed
 )
 
+:: Remove sami.phar.
+if exist %phar% (
+  echo.
+  echo Removing documentation stuff
+  del "%phar%"
+
+  if exist %config% (
+    del "%config%"
+  )
+
+  echo Documentation stuff removed
+)
+
 :: Script ends here. Closing cmd.
 echo.
 echo Your documentation was successfully created. Press any key to complete...

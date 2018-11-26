@@ -141,6 +141,19 @@ if [ -e ${cacheDir} ]; then
   echo "Cache directory removed"
 fi
 
+# Remove sami.phar.
+if [ -e ${phar} ]; then
+  echo ""
+  echo "Removing sami.phar \"${phar}\""
+  (rm -rf ${phar})
+
+  if [ -e ${config} ]; then
+    (rm -f ${config})
+  fi
+
+  echo "Sami.phar removed"
+fi
+
 # Script ends here.
 echo ""
 echo "Your documentation was successfully created."
